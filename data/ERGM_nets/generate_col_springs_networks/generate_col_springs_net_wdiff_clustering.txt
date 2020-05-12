@@ -1,0 +1,155 @@
+#This is R code demonstrating how to create the networks discussed in
+#"Immunization Strategies in Networks with Missing Data". 
+#Here we demonstrate how to generate the three networks based on the 
+#Colorado Springs network. We generate three network types, 
+#low clustering, medium clustering and high clustering. Each network 
+#has the same degree distribution and demographic composition 
+#as the original Colorado Springs network. We take these basic network 
+#features and simulate networks with different levels of clustering.
+#For each network type (low, medium, high clustering) we generate
+#5000 different networks. Here, for simplicity, we demonstrate how to simulate 1 network
+#of the desired network type. 
+
+#First we load the igraph package, assumed to be already installed.
+library(igraph)
+
+#For simplicity, we assume that all files will be read in and saved out 
+#to a single directory. Let's go ahead and set that:
+
+setwd("...")
+
+#Let's read in a functions we will need:
+source("functions/generate_initial_network_function.txt")
+
+#And here we the set network type we are interested generating. 
+#The options are: "low.clustering", "med.clustering", "high.clustering"
+#Here we will generate a network based on the medium clustering. 
+net.name="med.clustering" 
+
+#And let's also read in the input data we will need to condition our networks on.
+#We will read in ego network data based on the original 
+# Colorado Springs network. The ego network data contain the
+#personal network of each person in the network, including the 
+#degree and attributes of each node in the network (the key information here).  
+
+load(file="input.egonetdata.Rdata")
+#We now have an object called egonet.data in our workspace. 
+
+#The generated networks are of size 1000. So let's set that. 
+size.net=1000
+
+#The actual network is larger than 1000, so we will take a random 
+#draw from the nodes in the network, using that to populate 
+#our networks of size 1000. 
+
+set.seed(1200)
+
+samp.egos=sample(1:nrow(egonet.data),size.net,replace=T)
+
+egonet.datasamp=egonet.data[samp.egos,]
+
+#Now, we take our input information and generate a random network
+#to serve as inputs into the simulation below. We will generate a 
+#random network of size 1000, with degree distribution and composition
+# based on the data read in above (from egonet.data)
+#The generated network will also maintain the correlation between degree
+#and demographic characteristics (as cases from the input data are mapped onto
+#nodes in the network with similar degree). 
+
+#Here we define the key variable names on the input dataset.
+
+var.name.degree="deg" #name of variable showing degree for each node on dataset
+var.name.characs=c("race","gender","unemployed","illicit.activity.type") #names of variables in dataset for the respondents
+
+max.alter=5
+
+#Here we set other useful variable names, particularly the attributes of the 
+#individuals that each focal actor is tied to. 
+var.name.characs.alter=list()
+for (p in 1:length(var.name.characs)){
+var.name.characs.alter[[p]]=paste(var.name.characs[[p]],1:max.alter,sep="")
+}
+
+#And here we generate our baseline, random network. 
+
+initial.randnet=generate_initial_network(data=egonet.datasamp,
+degree=NULL,size.net=size.net,var.name.degree=var.name.degree,
+var.name.characs=var.name.characs,max.alter=max.alter,
+resp.weights=NULL,var.name.characs.alter=var.name.characs.alter)
+
+initial.randnet
+#This is a random network of size 1000 with the same degree distribution 
+#and demographic composition as the original data. 
+
+#We will now take our baseline network and use that as a starting point in the
+#actual simulation, where we change the level of clustering in the network. 
+#We generate three different networks, with three different levels of transitivity
+#but the same basic features otherwise. 
+
+#We will use the ergm package to simulate the networks. 
+library(ergm)
+
+#This bit of code will generate the network under low clustering. 
+
+if (net.name=="low.clustering"){
+
+#Here we set the coefficients to be used in the model below
+coefs=c(-1.0,0,0,1) 
+
+#Here we simulate our low clustering network, based on a gwesp term,
+#homopily on race, gender, degree correlations and the degree distribution. Note that
+#initial.randnet, generated above, serves as the reference point for the simulation. 
+
+lc_net=simulate(initial.randnet~
+gwesp(1,fixed=T)+nodematch("race")+nodematch("gender")+nodecov("deg")
+,coef=coefs,constraints=~degreedist,nsim=1,
+control=control.simulate.formula(MCMC.burnin=8000000))
+
+}
+
+
+#Same thing but now for the medium clustering network
+#The only thing that changes are the input coefficients to the model
+
+if (net.name=="med.clustering"){
+
+#Here we set the coefficients to be used in the model below
+coefs=c(1.90,.75,.75,1)
+
+
+#Here we simulate our medium clustering network, based on a gwesp term,
+#homopily on race, gender, degree correlations and the degree distribution. Note that
+#initial.randnet, generated above, serves as the reference point for the simulation. 
+
+mc_net=simulate(initial.randnet~
+gwesp(1,fixed=T)+nodematch("race")+nodematch("gender")+nodecov("deg")
+,coef=coefs,constraints=~degreedist,nsim=1,
+control=control.simulate.formula(MCMC.burnin=8000000))
+
+}
+
+
+#Same thing but now for the high clustering network
+#The only thing that changes are the input coefficinets to the model
+
+if (net.name=="high.clustering"){
+
+#Here we set the coefficients to be used in the model below
+coefs=c(3.4,4.5,4.5,1)
+
+#Here we simulate our medium clustering network, based on a gwesp term,
+#homopily on race, gender, degree correlations and the degree distribution. Note that
+#initial.randnet, generated above, serves as the reference point for the simulation. 
+
+hc_net=simulate(initial.randnet~
+gwesp(2.0,fixed=T)+nodematch("race")+nodematch("gender")+nodecov("deg")
+,coef=coefs,constraints=~degreedist,nsim=1,
+control=control.simulate.formula(MCMC.burnin=8000000))
+
+}
+
+#Note that across all 5000 simulations used in the paper, 
+#sometimes the transitivity was a bit high or low (compared to the target).
+#In such cases we reran the simulation again, generating a network with 
+#the desired properties.
+

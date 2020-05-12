@@ -1,0 +1,17 @@
+* Get rid of redundant files. Make sure there are not .csvs that are in more than one folder. 
+	As of the time I wrote this, all the all{netType}Results5and15 and the corresponding new{netType}Results5and15_gamma1_beta095 overlapped
+
+* Pick one naming convention and standardize
+
+* [ACTUALLY MAYBE DONT DO THIS (see note)]Combine all csvs with the same parameters but just different netters ranges into one csv per param set.
+	When you do this, keep the "networkVersions{start}thru{end}" part of the name but just make it "networkVersions1thru5000". 
+	 If we change the file naming convention it could break backwards compatibility and make it confusing if someone generates new results
+
+	NOTE: Currently by having the files divided up into the different netvers ranges, we skirt githubs hard cap of 100 MB per file. If we combined them we would exceed that I believe.
+	
+
+	Could also potentially do one csv for each network type or something more  general, but currently the figure-making code relies on the parameters in the .csv file names
+	 so if we wanted to combine the results of multiple param sets into one csv we would have to change all the figure-making code which would be a hassle
+ 
+* Put the other results we ran that don't show up in the paper anywhere in here anyway in case anyone wants to check em out 
+ E.g. we still have like 5% and 15% immunization at beta=.120 and .220 for a few cases before we decided on beta=1.7 being the high end (which consequently made 0.95 the middle instead of .120)

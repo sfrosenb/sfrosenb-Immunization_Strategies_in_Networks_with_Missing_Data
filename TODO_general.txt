@@ -1,0 +1,18 @@
+TODO (general)
+----
+
+* At the minimum make sure I am abiding by https://journals.plos.org/ploscompbiol/article?id=10.1371/journal.pcbi.1005510
+
+* Change things to be pep8 standard
+	Especially: 
+		* change all variable names to lowercase with underscores instead of camelcase
+		* Add docstrings
+
+
+* Make saving the outbreak size for every  individual simulation optional as it would save considerably on storage and on the time it takes to read the files back in later on (and somewhat on run time for this as well). The only time we use the individual outbreak sizes is in the distribution plots.
+
+* Put the actual SirsPerTrial simulations loop into a seperate function in sim_utls.py because its just copy pasted in here twice, once for the no immunization bit and then again for all the immunization strategies
+
+* Maybe use argparse instead of the netArgs dict? Heres an example of how: https://gitlab.com/compstorylab/hashtag-ecology/-/blob/cnww/parser.py
+
+

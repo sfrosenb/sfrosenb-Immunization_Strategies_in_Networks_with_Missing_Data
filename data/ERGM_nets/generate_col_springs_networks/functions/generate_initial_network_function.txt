@@ -1,0 +1,221 @@
+#function to take input data and generate
+###random network with right degree distribution and characs of alters on network
+
+#data=ego network dataset, of form charac, charac1, charac2, etc.; also have ties alter info, weights and possibly other info
+#degree=vector representing the degree distribution in the network to be simulated
+#size.net=size of network to be simulated
+#var.name.degree=name of variable in data that has the degree of the respondents
+#var.name.characs= vector of names of characterisictics for homophily model-case control logistic
+
+#alter.tie.data=a dataset indicating if alter 1 is tied to 2, 1 to 3...
+#max.alter=max number of alters the respondents were allowed to name
+#resp.weights=vector of weights to create representative population 
+#var.name.characs.alter=list of variable names for alter characteristics, same order as var.name.charac
+#formula.initial.ergm=formula to run an initial ergm on the ego networks 
+
+is.wholenumber <- function(x, tol = .Machine$double.eps^0.5)  abs(x - round(x)) < tol
+
+
+
+edgelist.alter.func=function(deg,alter.tie.vector,possible.ties,max.alter)
+{ 
+if (deg<max.alter){
+dat=cbind(rep(1,deg),2:(deg+1))
+possible.ties=possible.ties[as.numeric(alter.tie.vector)*c(1:nrow(possible.ties)),]
+   }
+
+if (deg>=max.alter){
+dat=cbind(rep(1,max.alter),2:(max.alter+1))
+possible.ties=possible.ties[as.numeric(alter.tie.vector)*c(1:nrow(possible.ties)),]
+   }
+
+return(rbind(dat,possible.ties))
+}
+
+
+generate_initial_network=function(data,degree=NULL,size.net,var.name.degree,var.name.characs=c(),max.alter=NULL
+,resp.weights=NULL,var.name.characs.alter=list(),formula.initial.ergm=NULL){
+
+if (is.null(max.alter)){max.alter=max(unlist(lapply(var.name.characs.alter,length)))}
+
+
+
+#if don't give input degree dist, then 
+if (is.null(degree)){degree.vector=data[,var.name.degree]
+
+#getting table of degree distribution
+degree.dist=table(degree.vector)
+
+#generating random network with correct degree distribution
+degree.dist.netsize=round(degree.dist*size.net/sum(degree.dist))
+
+diff.size=sum(degree.dist.netsize)-size.net
+addsubtract=rpois(abs(diff.size),mean(degree.vector))
+
+degree.vector=rep(as.numeric(names(degree.dist.netsize)),degree.dist.netsize)
+
+#}
+
+#if (diff.size<0){degree.vector=c(degree.vector,addsubtract)}
+#if (diff.size>0){degree.vector=degree.vector[-sample(which(degree.vector%in% addsubtract),abs(diff.size))]}
+if (diff.size<0){
+
+degree.vector=c(degree.vector,addsubtract)}
+
+if (diff.size>0){
+
+#here making sure that degree selected is in network 
+subtract=(degree.vector%in% addsubtract)
+
+#if selected case not in network, just randomly sample 
+if(sum(subtract)==0){
+degree.vector=degree.vector[-sample(1:length(degree.vector),abs(diff.size))]
+  }
+
+
+if(sum(subtract)!=0){
+degree.vector=degree.vector[-sample(which(subtract),abs(diff.size))]
+  }
+
+ }
+}
+
+if (!is.null(degree)){degree.vector=degree}
+
+
+degree.vector2=degree.vector[degree.vector>0]
+
+if ( !( is.wholenumber(sum(degree.vector2)/2)) ){smp=sample(1:length(degree.vector2),1);degree.vector2[smp]=degree.vector2[smp]+1}
+
+
+#net1=degree.sequence.game(degree.vector2,method="vl")
+net1=sample_degseq(degree.vector2,method="vl")
+
+edgelist=as_edgelist(net1)
+
+rm1=(which(edgelist[,1]==edgelist[,2]))
+if (length(rm1)>0){edgelist=edgelist[-rm1,]}
+edgelist=unique(edgelist)
+
+#net2=graph.edgelist(edgelist,directed=F)
+net2=graph_from_data_frame(edgelist,directed=F)
+odeg.temp=degree(net2)
+
+detach(package:igraph)
+####################################
+
+
+#getting random network of desired size with characteristics 
+library(ergm);library(network);library(sna)
+
+empty.net<-network.initialize(size.net, directed=FALSE)
+initial.randnet<-network.edgelist(edgelist, empty.net, ignore.eval=FALSE, directed=FALSE)
+
+#getting degree of person in random network
+
+odegree=rep(NA,initial.randnet[[2]][[1]])
+odegree[2:length(odegree)]=summary(initial.randnet~sociality,base=0)
+#odegree[1]=length(initial.randnet[[4]][[1]])
+odegree[1]=odeg.temp[1]
+
+gc()
+
+#linking people in network to dataset
+# so that people with certain degree have right characteristics
+
+empirical.degree=data[,var.name.degree]
+
+smp.ids=NA
+
+if (is.null(resp.weights)){
+resp.weights.temp=rep(1,nrow(data))
+}
+
+if (!is.null(resp.weights)){
+resp.weights.temp=resp.weights
+}
+
+
+for (i in 1:length(odegree)){
+
+diff.degree=abs(empirical.degree-odegree[i])
+samps.temp=which(diff.degree<1)
+
+samps.temp=samps.temp[!(samps.temp%in%smp.ids)]
+
+
+#if not within 1, take sample of closest people
+if (length(samps.temp)==0){
+# min.diff=min(diff.degree)
+#samps.temp=which(diff.degree<1)
+
+samp.from=which(diff.degree<2)
+
+
+if (length(samp.from)>0){
+smp.ids[i]=sample(c(samp.from,0),1,prob=c(resp.weights.temp[samp.from],0))
+#smp.ids[i]=sample(samp.from,1)
+
+if (length(samp.from)==1){
+smp.ids[i]=samp.from
+    }
+  }
+# smp.ids[i]=NA   
+
+if (length(samp.from)==0){
+#if not within 2, sample from closest people
+
+samp.from=which(diff.degree==min(diff.degree))
+smp.ids[i]=sample(c(samp.from,0),1,prob=c(resp.weights.temp[samp.from],0))
+#smp.ids[i]=sample(samp.from,1)
+
+if (length(samp.from)==1){
+smp.ids[i]=samp.from
+    }
+  }
+
+
+      }
+
+if (length(samps.temp)!=0){
+#smp.ids[i]=sample(paste(samps.temp[!(samps.temp%in%smp.ids)]),1)
+smp.ids[i]=sample(paste(samps.temp[]),1,prob=resp.weights.temp[samps.temp])
+
+  }
+ }
+rm(diff.degree); gc()
+
+smp.ids=as.numeric(smp.ids)
+
+
+
+#getting characteristics of people onto network
+for (p in 1:length(var.name.characs)){
+var=data[smp.ids,var.name.characs[p]]
+#dealing with missing data-putting in values of not missing people around that person 
+miss=which(is.na(var))
+  if (length(miss)>0){
+for (m in 1:length(miss)){
+markers=miss[m]   
+temp.deg=data[smp.ids[markers],var.name.degree]
+
+
+var[miss][m]=sample(na.omit(var[which((abs(data[smp.ids,var.name.degree]-temp.deg))<2)]),1)
+
+#sample(na.omit(var[c(max( 1,(markers-5) ):min(size.net,(markers+5)) )]),1)
+       }
+   }
+initial.randnet %v% var.name.characs[p]<-var}
+
+initial.randnet %v% "deg"<-odegree
+
+
+
+
+##############################################################
+
+
+initial.randnet
+
+}
+
